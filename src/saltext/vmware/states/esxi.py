@@ -1551,3 +1551,152 @@ def password_present(
             return ret
     ret["comment"] = "Host password changed."
     return ret
+
+
+def vmotion_configured(
+    name,
+    enabled,
+    device="vmk0",
+    datacenter_name=None,
+    cluster_name=None,
+    host_name=None,
+    service_instance=None,
+):
+    """
+    Configures a host's VMotion properties such as enabling VMotion and setting
+    the device VirtualNic that VMotion will use.
+
+    name
+        Name of the state.  (DGM this could have been returned from name of function)
+
+    enabled
+        Ensures whether or not VMotion should be enabled on a host as a boolean
+        value where ``True`` indicates that VMotion should be enabled and ``False``
+        indicates that VMotion should be disabled.
+
+    device
+        The device that uniquely identifies the VirtualNic that will be used for
+        VMotion for the host. Defaults to ``vmk0``.
+
+    datacenter_name
+        Filter by this datacenter name (required when cluster is specified)
+
+    cluster_name
+        Filter by this cluster name (optional)
+
+    host_name
+        Filter by this ESXi hostname (optional)
+
+    service_instance
+        Use this vCenter service connection instance instead of creating a new one. (optional).
+
+    Example:
+
+    .. code-block:: yaml
+
+        configure-vmotion:
+          esxi.vmotion_configured:
+            - enabled: True
+            - device: sample-device
+
+    """
+    log.debug("Running vmware_esxi.firewall_config")
+    ret = {"name": name, "result": None, "comment": "", "changes": {}}
+    try:
+        response_list = __salt__["vmware_esxi.get_vmotion_enabled"](
+            datacenter_name=datacenter_name,
+            cluster_name=cluster_name,
+            host_name=host_name,
+            service_instance=service_instance,
+        )
+
+        # returns a list of host names with enabled or nota
+        log.debug(f"DGM vmotion_configured response_list '{response_list}'")
+        for host in response_list:
+            current_vmotion_enabled = host.get("VMotion_Enabled")
+
+            # DGM work in progress - pausing while helping with 3006 RC1
+
+            # Configure VMotion Enabled state, if changed.
+            if enabled != current_vmotion_enabled:
+                # Only run the command if not using test=True
+                if not __opts__["test"]:
+                    # Enable VMotion if enabled=True
+                    if enabled is True:
+                        ## response = __salt__[esxi_cmd]("vmotion_enable", device=device).get(host)
+                        # DGM
+                        response = __salt__["vmware_esxi.set_vmotion_enable"](device=device).get(
+                            host
+                        )
+                        error = response.get("Error")
+                        if error:
+                            ret["comment"] = "Error: {}".format(error)
+                            return ret
+                    # Disable VMotion if enabled=False
+                    else:
+                        ## response = __salt__[esxi_cmd]("vmotion_disable").get(host)
+                        # DGM
+                        response = __salt__["vmware_esxi.set_vmotion_disable"]().get(host)
+                        error = response.get("Error")
+                        if error:
+                            ret["comment"] = "Error: {}".format(error)
+                            return ret
+                ret["changes"].update(
+                    {host: {"enabled": {"old": current_vmotion_enabled, "new": enabled}}}
+                )
+
+    ## DGM    ret["result"] = True
+    ## DGM    if ret["changes"] == {}:
+    ## DGM        ret["comment"] = "VMotion configuration is already in the desired state."
+    ## DGM        return ret
+    ## DGM
+    ## DGM    if __opts__["test"]:
+    ## DGM        ret["result"] = None
+    ## DGM        ret["comment"] = "VMotion configuration will change."
+    ## DGM
+    ## DGM
+    ## DGM#-----------------------
+    ## DGM
+    ## DGM    current_vmotion_enabled = current_vmotion_enabled.get("VMotion Enabled")
+    ## DGM
+    ## DGM    # Configure VMotion Enabled state, if changed.
+    ## DGM    if enabled != current_vmotion_enabled:
+    ## DGM        # Only run the command if not using test=True
+    ## DGM        if not __opts__["test"]:
+    ## DGM            # Enable VMotion if enabled=True
+    ## DGM            if enabled is True:
+    ## DGM                response = __salt__[esxi_cmd]("vmotion_enable", device=device).get(host)
+    ## DGM                error = response.get("Error")
+    ## DGM                if error:
+    ## DGM                    ret["comment"] = "Error: {}".format(error)
+    ## DGM                    return ret
+    ## DGM            # Disable VMotion if enabled=False
+    ## DGM            else:
+    ## DGM                response = __salt__[esxi_cmd]("vmotion_disable").get(host)
+    ## DGM                error = response.get("Error")
+    ## DGM                if error:
+    ## DGM                    ret["comment"] = "Error: {}".format(error)
+    ## DGM                    return ret
+    ## DGM        ret["changes"].update(
+    ## DGM            {"enabled": {"old": current_vmotion_enabled, "new": enabled}}
+    ## DGM        )
+    ## DGM
+    ## DGM    ret["result"] = True
+    ## DGM    if ret["changes"] == {}:
+    ## DGM        ret["comment"] = "VMotion configuration is already in the desired state."
+    ## DGM        return ret
+    ## DGM
+    ## DGM    if __opts__["test"]:
+    ## DGM        ret["result"] = None
+    ## DGM        ret["comment"] = "VMotion configuration will change."
+    ## DGM
+    ## DGM
+    ## DGM
+    ## DGM
+    ## DGM#---------------------------
+    except salt.exceptions.CommandExecutionError as err:
+        ret["result"] = False
+        ret["comment"] = "Error: {}".format(err)
+        return ret
+
+    return ret

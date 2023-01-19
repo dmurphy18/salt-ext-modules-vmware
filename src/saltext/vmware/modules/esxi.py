@@ -3198,3 +3198,53 @@ def exit_lockdown_mode(host, catch_task_error=True, service_instance=None, profi
     mode = in_lockdown_mode(host_ref, service_instance)
     mode["changes"] = mode["lockdownMode"] == "normal"
     return mode
+
+
+def get_vmotion_enabled(
+    datacenter_name=None, cluster_name=None, host_name=None, service_instance=None, profile=None
+):
+    """
+    Get VMotion Enabled configuration on matching ESXi hosts.
+
+    datacenter_name
+        Filter by this datacenter name (required when cluster is specified)
+
+    cluster_name
+        Filter by this cluster name (optional)
+
+    host_name
+        Filter by this ESXi hostname (optional)
+
+    service_instance
+        Use this vCenter service connection instance instead of creating a new one. (optional).
+
+    profile
+        Profile to use (optional)
+
+    .. code-block:: bash
+
+        salt '*' vmware_esxi.get_vmotion_enabled
+    """
+    log.debug("Running vmware_esxi.get_vmotion_enabled")
+    ret = {}
+    service_instance = service_instance or utils_connect.get_service_instance(
+        config=__opts__, profile=profile
+    )
+    hosts = utils_esxi.get_hosts(
+        service_instance=service_instance,
+        host_names=[host_name] if host_name else None,
+        cluster_name=cluster_name,
+        datacenter_name=datacenter_name,
+        get_all_hosts=host_name is None,
+    )
+
+    try:
+        for h in hosts:
+            vmotion_vnic = h.configManager.vmotionSystem.netConfig.selectedVnic
+            if vmotion_vnic:
+                ret[h.name] = {"VMotion_Enabled": True}
+            else:
+                ret[h.name] = {"VMotion_Enabled": False}
+        return ret
+    except DEFAULT_EXCEPTIONS as exc:
+        raise salt.exceptions.SaltException(str(exc))
